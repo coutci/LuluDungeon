@@ -278,7 +278,7 @@ namespace LuluDungeon
             _energyText.font = playerHPText.font;
             _energyText.fontSize = 20;
             _energyText.alignment = TextAnchor.MiddleCenter;
-            _energyText.color = new Color(1f, 0.92f, 0.3f);
+            _energyText.color = new Color(0.30f, 0.65f, 1f);   // 亮蓝（与面板底色区分）
             _energyText.raycastTarget = false;
         }
 

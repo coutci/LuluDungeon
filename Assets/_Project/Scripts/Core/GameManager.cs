@@ -704,7 +704,7 @@ namespace LuluDungeon
             EventBus.Publish<int>(EventBus.ON_LEVEL_CHANGE, newFloor);
         }
 
-        /// <summary>Boss 击败：记录标记、激活楼梯；到达最终层触发通关</summary>
+        /// <summary>Boss 击败：记录标记、激活楼梯；到达最终层（9 层）触发通关结算</summary>
         public void OnBossDefeated(int floor)
         {
             playerData.bossDefeated = true;
@@ -712,7 +712,61 @@ namespace LuluDungeon
             if (dg != null) dg.ActivateStairs();
             if (floor >= endFloor)
             {
-                EventBus.Publish(EventBus.ON_GAME_WIN);
+                StartCoroutine(GameWinSequence());
+            }
+        }
+
+        /// <summary>通关：等胜利动画播完后显示结束语面板，数秒后自动保存并返回主菜单</summary>
+        private System.Collections.IEnumerator GameWinSequence()
+        {
+            yield return new WaitForSeconds(1.5f);
+            ShowGameWinPanel();
+            yield return new WaitForSeconds(6f);
+            var dm = DataManager.Instance;
+            if (dm != null) dm.AutoSave();
+            Time.timeScale = 1f;
+            UnityEngine.SceneManagement.SceneManager.LoadScene("MainMenu");
+        }
+
+        /// <summary>在相机前方弹出通关结束语面板</summary>
+        private void ShowGameWinPanel()
+        {
+            var root = new GameObject("GameWinPanel");
+
+            var canvasGo = new GameObject("Canvas");
+            canvasGo.transform.SetParent(root.transform, false);
+            var canvas = canvasGo.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            canvas.worldCamera = Camera.main;
+            canvasGo.GetComponent<RectTransform>().localScale = new Vector3(0.001f, 0.001f, 0.001f);
+
+            var bg = canvasGo.AddComponent<UnityEngine.UI.Image>();
+            bg.color = new Color(0.10f, 0.10f, 0.14f, 0.92f);
+            bg.rectTransform.sizeDelta = new Vector2(1000f, 380f);
+
+            var textGo = new GameObject("WinText");
+            textGo.transform.SetParent(canvasGo.transform, false);
+            var text = textGo.AddComponent<UnityEngine.UI.Text>();
+            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            text.text = "恭喜通关！\n你已征服 LuluDungeon 的全部 10 层地牢！";
+            text.fontSize = 44;
+            text.color = new Color(1f, 0.88f, 0.30f);
+            text.alignment = TextAnchor.MiddleCenter;
+            text.horizontalOverflow = HorizontalWrapMode.Overflow;
+            text.verticalOverflow = VerticalWrapMode.Overflow;
+            var trt = textGo.GetComponent<RectTransform>();
+            trt.sizeDelta = new Vector2(940f, 330f);
+
+            var cam = Camera.main;
+            if (cam != null)
+            {
+                Vector3 fwd = cam.transform.forward;
+                fwd.y = 0f;
+                if (fwd.sqrMagnitude < 0.001f) fwd = cam.transform.forward;
+                fwd.Normalize();
+                root.transform.position = cam.transform.position + fwd * 1.3f + Vector3.up * 0.05f;
+                root.transform.rotation = Quaternion.LookRotation(cam.transform.position - root.transform.position)
+                                         * Quaternion.Euler(0f, 180f, 0f);
             }
         }
 

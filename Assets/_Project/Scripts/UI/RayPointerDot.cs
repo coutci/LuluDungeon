@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
 
 namespace LuluDungeon
@@ -13,7 +14,7 @@ namespace LuluDungeon
         public static RayPointerDot Instance { get; private set; }
 
         private Transform _dot;
-        private readonly List<XRRayInteractor> _interactors = new List<XRRayInteractor>();
+        private readonly List<XRBaseInteractor> _interactors = new List<XRBaseInteractor>();
         private float _refreshTimer;
 
         /// <summary>确保全局光点存在（GameManager.Awake 调用）</summary>
@@ -39,18 +40,31 @@ namespace LuluDungeon
 
         private void CreateDot()
         {
+            // 外层靶心底衬（暗橙扁球）
+            var outer = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            outer.name = "Outer";
+            outer.transform.SetParent(transform, false);
+            outer.transform.localScale = new Vector3(0.065f, 0.065f, 0.014f);
+            var outerCol = outer.GetComponent<Collider>();
+            if (outerCol != null) Destroy(outerCol);
+            var outerShader = Shader.Find("Universal Render Pipeline/Unlit");
+            if (outerShader == null) outerShader = Shader.Find("Unlit/Color");
+            var outerMat = new Material(outerShader);
+            outerMat.color = new Color(0.95f, 0.45f, 0.10f);
+            outer.GetComponent<MeshRenderer>().sharedMaterial = outerMat;
+
+            // 中心亮点（亮黄球）
             var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             go.name = "Dot";
             go.transform.SetParent(transform, false);
-            go.transform.localScale = Vector3.one * 0.014f;   // 直径约 1.4cm
+            go.transform.localScale = Vector3.one * 0.026f;
             var col = go.GetComponent<Collider>();
             if (col != null) Destroy(col);
-
             var mr = go.GetComponent<MeshRenderer>();
             var shader = Shader.Find("Universal Render Pipeline/Unlit");
             if (shader == null) shader = Shader.Find("Unlit/Color");
             var mat = new Material(shader);
-            mat.color = new Color(1f, 0.85f, 0.15f);
+            mat.color = new Color(1f, 0.90f, 0.30f);
             mr.sharedMaterial = mat;
 
             _dot = go.transform;
@@ -60,7 +74,7 @@ namespace LuluDungeon
         private void RefreshInteractors()
         {
             _interactors.Clear();
-            var all = FindObjectsByType<XRRayInteractor>(FindObjectsSortMode.None);
+            var all = FindObjectsByType<XRBaseInteractor>(FindObjectsSortMode.None);
             foreach (var inter in all)
                 if (inter != null) _interactors.Add(inter);
         }
@@ -83,19 +97,24 @@ namespace LuluDungeon
             {
                 if (inter == null || !inter.isActiveAndEnabled) continue;
 
-                // 3D 命中（按钮/可交互物）
-                if (inter.TryGetCurrent3DRaycastHit(out var hit))
+                var ray = inter as XRRayInteractor;
+                if (ray != null)
                 {
-                    pos = hit.point;
-                    visible = true;
-                    break;
+                    // 3D 命中（按钮/可交互物）
+                    if (ray.TryGetCurrent3DRaycastHit(out var hit)) { pos = hit.point; visible = true; break; }
+                    // UI 命中（面板/按钮）
+                    if (ray.TryGetCurrentUIRaycastResult(out var ui) && ui.isValid) { pos = ui.worldPosition; visible = true; break; }
+                    continue;
                 }
-                // UI 命中（面板/按钮）
-                if (inter.TryGetCurrentUIRaycastResult(out var uiHit) && uiHit.isValid)
+
+                var nf = inter as NearFarInteractor;
+                if (nf != null)
                 {
-                    pos = uiHit.worldPosition;
-                    visible = true;
-                    break;
+                    // UI 命中（uGUI 面板）
+                    if (nf.TryGetCurrentUIRaycastResult(out var ui) && ui.isValid) { pos = ui.worldPosition; visible = true; break; }
+                    // 远距离射线命中（3D collider 按钮等）
+                    var caster = nf.farInteractionCaster as XRRayInteractor;
+                    if (caster != null && caster.TryGetCurrent3DRaycastHit(out var hit)) { pos = hit.point; visible = true; break; }
                 }
             }
 
