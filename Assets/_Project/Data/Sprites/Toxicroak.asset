@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 825128a2b17309f4483615117b89687f, type: 3}
+  m_Name: Toxicroak
+  m_EditorClassIdentifier: Assembly-CSharp::LuluDungeon.SpriteData
+  spriteName: "\u98DF\u4EBA\u82B1"
+  elementType: 3
+  role: 0
+  baseHP: 47
+  baseAttack: 7
+  hpPerLevel: 4.7
+  attackPerLevel: 0.6
+  speedMin: 8
+  speedMax: 12
+  skill1: {fileID: 11400000, guid: 985309fc239e2784fa3481c60c236ef2, type: 2}
+  skill2: {fileID: 11400000, guid: 83db086231947634fa1bfe9d3828237e, type: 2}
+  skill3: {fileID: 11400000, guid: 7d758c5c9c0bdfd4197e556ba37b2d3a, type: 2}
+  skill4: {fileID: 11400000, guid: 558aeaffb07dc7846b455b86423d332e, type: 2}
+  skill5: {fileID: 11400000, guid: 79b915a65698bc643b41d7ed65d8b398, type: 2}
+  placeholderColor: {r: 0.4, g: 0.73, b: 0.42, a: 1}
+  modelScale: 0.9
+  catchRateModifier: 1

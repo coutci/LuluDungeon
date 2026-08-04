@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 508edb944d24e574595a91425051a8e4, type: 3}
+  m_Name: PXR_PlatformSetting
+  m_EditorClassIdentifier: PICO.Platform::Unity.XR.PXR.PXR_PlatformSetting
+  entitlementCheckSimulation: 0
+  startTimeEntitlementCheck: 0
+  appID: Build completed with a result of 'Failed' in 64 seconds (64145 ms) [2026/7/25
+    16:24:41 -> 2026/7/25 16:25:45, 1m 04s] 2 errors UnityEditor.BuildPlayerWindow/DefaultBuildMethods:BuildPlayer
+    (UnityEditor.BuildPlayerOptions) Unity.XR.PXR.Editor.PXR_SDKBuildCheck:OnBuild
+    (UnityEditor.BuildPlayerOptions) (at D:/PicoSDK/PICO Unity Integration SDK-3.4.0-20260226/Editor/PXR07ff4ad7eccd62850b6a7d3c77308769
+  useHighlight: 1
+  deviceSN: []

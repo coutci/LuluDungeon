@@ -1,0 +1,43 @@
+# ===== Unity 生成目录（绝不可提交）=====
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+MemoryCaptures/
+CrashReport/
+Crashes/
+
+# ===== Unity 自动生成文件 =====
+*.csproj
+*.sln
+*.slnx
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+*.unityproj
+*.apk
+*.aab
+*.unitypackage.bak
+
+# ===== 项目特定 =====
+# PICO 驱动日志（20MB×6 个）
+ps_driver_sdk*.log
+# Android 签名密钥：敏感，勿提交（请另行安全备份 user.keystore）
+user.keystore
+
+# ===== 操作系统 =====
+.DS_Store
+Thumbs.db
+Desktop.ini
+# Visual Studio 本地缓存
+.vs/

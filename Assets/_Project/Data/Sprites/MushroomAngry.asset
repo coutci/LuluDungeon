@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 825128a2b17309f4483615117b89687f, type: 3}
+  m_Name: MushroomAngry
+  m_EditorClassIdentifier: Assembly-CSharp::LuluDungeon.SpriteData
+  spriteName: "\u8611\u83C7\u602A"
+  elementType: 3
+  role: 0
+  baseHP: 63
+  baseAttack: 5.5
+  hpPerLevel: 6.3
+  attackPerLevel: 0.48
+  speedMin: 4
+  speedMax: 8
+  skill1: {fileID: 11400000, guid: 82765f14a60902441908addbbb0868f2, type: 2}
+  skill2: {fileID: 11400000, guid: 731e186b08ad0fc4f91378df5112a41f, type: 2}
+  skill3: {fileID: 11400000, guid: 525d95b4d9f98f945945f5f8bed8a80c, type: 2}
+  skill4: {fileID: 11400000, guid: b35de536364cea948a353469b8a2eeb5, type: 2}
+  skill5: {fileID: 11400000, guid: ddec8ae908f58834cbce9d3bc7d73fbd, type: 2}
+  placeholderColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+  modelScale: 1
+  catchRateModifier: 1

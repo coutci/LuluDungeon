@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ae7ba108901e269439d0e4549132794c, type: 3}
+  m_Name: SkillBottle
+  m_EditorClassIdentifier: Assembly-CSharp::LuluDungeon.ItemData
+  itemName: Skill Bottle
+  itemType: 2
+  price: 60
+  description: "\u6062\u590D\u5F53\u524D\u51FA\u6218\u7CBE\u7075\u5168\u90E8\u6280\u80FD\u6B21\u6570\u7684
+    50%"
+  ballQuality: 0
+  catchMin: 45
+  catchMax: 105
+  healPercent: 1
+  skillRefillPercent: 0.5

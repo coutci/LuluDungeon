@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 825128a2b17309f4483615117b89687f, type: 3}
+  m_Name: FountainDuck
+  m_EditorClassIdentifier: Assembly-CSharp::LuluDungeon.SpriteData
+  spriteName: "\u53F2\u83B1\u59C6"
+  elementType: 2
+  role: 0
+  baseHP: 52
+  baseAttack: 6
+  hpPerLevel: 5.25
+  attackPerLevel: 0.52
+  speedMin: 6
+  speedMax: 10
+  skill1: {fileID: 11400000, guid: 2f3e3d95277f46c439df8e57e3008b66, type: 2}
+  skill2: {fileID: 11400000, guid: 77a5ec33fde8bdb4d858d390b99de685, type: 2}
+  skill3: {fileID: 11400000, guid: 3bacf75917c990846a192b18aae4465e, type: 2}
+  skill4: {fileID: 11400000, guid: 3547fc01d2400044fa0f96805a6fc2a6, type: 2}
+  skill5: {fileID: 11400000, guid: cf98c49e87847c340ae4b65f9dc32684, type: 2}
+  placeholderColor: {r: 0.51, g: 0.83, b: 0.98, a: 1}
+  modelScale: 0.9
+  catchRateModifier: 1

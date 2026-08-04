@@ -1,0 +1,95 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &3423456665560578348
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7670591067672588790}
+  - component: {fileID: 5092549621713876998}
+  - component: {fileID: 3360610997464193599}
+  m_Layer: 0
+  m_Name: GameManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7670591067672588790
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3423456665560578348}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &5092549621713876998
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3423456665560578348}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e65faa1b5565ff046816ff8bd902a9f6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LuluDungeon.GameManager
+  playerData:
+    currentFloor: 10
+    bossDefeated: 0
+    guideGifted: 0
+    gold: 100
+    chipPokeBalls: 0
+    normalPokeBalls: 2
+    greatPokeBalls: 0
+    ultraPokeBalls: 0
+    healBottles: 0
+    reviveBottles: 0
+    expBottles: 0
+    skillBottles: 0
+    activeSpriteIndex: 0
+    pokeBallSlots: []
+  activeSaveSlot: -1
+  allSpriteConfigs:
+  - {fileID: 11400000, guid: 3295c4d3697a8b049a1fc607fc24a460, type: 2}
+  - {fileID: 11400000, guid: 0193d3aa9c452c3479fbcc73cee5f4ad, type: 2}
+  - {fileID: 11400000, guid: b850208da4f40494c948c88b7dbcf59a, type: 2}
+  - {fileID: 11400000, guid: 3d746144357b3ab4f8336070e9c0462e, type: 2}
+  - {fileID: 11400000, guid: 2132417c15c27cd4ca7ee7254899a64f, type: 2}
+  - {fileID: 11400000, guid: e67233e1b9426cd4284037b97c0b4d7b, type: 2}
+  - {fileID: 11400000, guid: b118bdffc0580e342824100685364ec9, type: 2}
+  - {fileID: 11400000, guid: d4a33db018eb67643ac9a2b12775c404, type: 2}
+  - {fileID: 11400000, guid: 8a0c62eea1975d144bc97ce6965e50cd, type: 2}
+  - {fileID: 11400000, guid: 6d75d2923c5677c4c8d3a758d5680a06, type: 2}
+  allItemConfigs:
+  - {fileID: 11400000, guid: 586961994c6796f43b7b4919b8569fed, type: 2}
+  - {fileID: 11400000, guid: e768df7486f2ea44684bfd370d89dc4d, type: 2}
+  - {fileID: 11400000, guid: 3c4c160a6b9e7a642bc3851a8763372e, type: 2}
+  - {fileID: 11400000, guid: ba67ed20d702c464fad1c0a5d30b7cd1, type: 2}
+  - {fileID: 11400000, guid: 4afa17b333a1b294492083922b841809, type: 2}
+  - {fileID: 11400000, guid: 8a9e144f5ecf278429036478d5439bc5, type: 2}
+  startFloor: 0
+  endFloor: 9
+--- !u!114 &3360610997464193599
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3423456665560578348}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 745a59d81d111e848abc6fd3ecac2320, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LuluDungeon.DataManager

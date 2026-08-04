@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 825128a2b17309f4483615117b89687f, type: 3}
+  m_Name: Cyclops
+  m_EditorClassIdentifier: Assembly-CSharp::LuluDungeon.SpriteData
+  spriteName: "\u72EC\u773C\u5DE8\u4EBA"
+  elementType: 4
+  role: 0
+  baseHP: 47
+  baseAttack: 7
+  hpPerLevel: 4.7
+  attackPerLevel: 0.6
+  speedMin: 8
+  speedMax: 12
+  skill1: {fileID: 11400000, guid: 6086575030308e44aa970fe4aedb0d06, type: 2}
+  skill2: {fileID: 11400000, guid: cf59899ed88a3bf48bcdef28f24ea1d4, type: 2}
+  skill3: {fileID: 11400000, guid: 3cdc3df407737074985bea82b2efa34b, type: 2}
+  skill4: {fileID: 11400000, guid: 9985dc39662baf54dbf2ecb90764f77d, type: 2}
+  skill5: {fileID: 11400000, guid: 329ca652fe5230843aba9b6f15fb42d3, type: 2}
+  placeholderColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+  modelScale: 1
+  catchRateModifier: 1
