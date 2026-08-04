@@ -53,6 +53,7 @@ namespace LuluDungeon
         private GameManager _gm;
         private bool _forcedSwitchMode;
         private Coroutine _endBattleCoroutine;   // 战斗结束延迟隐藏句柄(新战斗开始前需取消)
+        private UnityEngine.UI.Text _energyText;   // 动态创建的玩家能量显示（跟随 HP 文本下方）
 
         private void Start()
         {
@@ -144,6 +145,9 @@ namespace LuluDungeon
                 playerHPText.text = $"{ps.currentHP:F0}/{ps.maxHP:F0}";
             if (enemyHPText != null && es != null)
                 enemyHPText.text = $"{es.currentHP:F0}/{es.maxHP:F0}";
+            EnsureEnergyText();
+            if (_energyText != null && ps != null)
+                _energyText.text = $"⚡ {ps.energy}/{SpriteInstance.MaxEnergy}";
 
             // 常驻刷新技能次数显示
             if (ps != null && _bm.CurrentState == BattleState.PlayerTurn)
@@ -197,7 +201,7 @@ namespace LuluDungeon
             SetButtonInteractable(bagButton, interactable);
             SetButtonInteractable(escapeButton, interactable && !_bm.IsBossBattle);
             SetButtonInteractable(healButton, interactable && _gm.HasItem("Heal Bottle"));
-            SetButtonInteractable(skillBottleButton, interactable && _gm.HasItem("Skill Bottle"));
+            SetButtonInteractable(skillBottleButton, interactable && _gm.HasItem("Energy Bottle"));
 
             if (interactable)
             {
@@ -217,8 +221,9 @@ namespace LuluDungeon
             {
                 box = go.AddComponent<BoxCollider>();
                 var rt = go.GetComponent<RectTransform>();
-                float w = rt != null ? rt.rect.width * 0.001f : 0.2f;
-                float h = rt != null ? rt.rect.height * 0.001f : 0.08f;
+                // 世界尺寸 = 本地像素 × lossyScale（兼容任意 Canvas 缩放，修正旧 ×0.001 假设）
+                float w = rt != null ? rt.rect.width * rt.lossyScale.x : 0.2f;
+                float h = rt != null ? rt.rect.height * rt.lossyScale.y : 0.08f;
                 box.size = new Vector3(w, h, 0.02f);
             }
             var inter = go.GetComponent<XRSimpleInteractable>();
@@ -250,8 +255,9 @@ namespace LuluDungeon
             {
                 box = go.AddComponent<BoxCollider>();
                 var rt = go.GetComponent<RectTransform>();
-                float w = rt != null ? rt.rect.width * 0.001f : 0.2f;
-                float h = rt != null ? rt.rect.height * 0.001f : 0.08f;
+                // 世界尺寸 = 本地像素 × lossyScale（兼容任意 Canvas 缩放）
+                float w = rt != null ? rt.rect.width * rt.lossyScale.x : 0.2f;
+                float h = rt != null ? rt.rect.height * rt.lossyScale.y : 0.08f;
                 box.size = new Vector3(w, h, 0.02f);
             }
             var inter = go.GetComponent<XRSimpleInteractable>();
@@ -259,7 +265,24 @@ namespace LuluDungeon
             return inter;
         }
 
-        /// <summary>技能按钮：显示技能名 + 剩余次数，次数耗尽灰显</summary>
+        /// <summary>动态创建玩家能量文本（挂在 HP 文本下方，复用现有字体）</summary>
+        private void EnsureEnergyText()
+        {
+            if (_energyText != null || uiCanvas == null || playerHPText == null) return;
+            var go = new GameObject("PlayerEnergyText");
+            go.transform.SetParent(playerHPText.transform.parent, false);
+            var rt = go.AddComponent<RectTransform>();
+            rt.anchoredPosition = playerHPText.rectTransform.anchoredPosition + new Vector2(0f, -30f);
+            rt.sizeDelta = new Vector2(400f, 26f);
+            _energyText = go.AddComponent<UnityEngine.UI.Text>();
+            _energyText.font = playerHPText.font;
+            _energyText.fontSize = 20;
+            _energyText.alignment = TextAnchor.MiddleCenter;
+            _energyText.color = new Color(1f, 0.92f, 0.3f);
+            _energyText.raycastTarget = false;
+        }
+
+        /// <summary>技能按钮：显示技能名 + 能量消耗；能量不足时攻击类显示基础攻击兜底、非攻击类灰显</summary>
         private void RefreshSkillButtons()
         {
             if (_bm == null || _bm.PlayerSprite == null) return;
@@ -275,21 +298,29 @@ namespace LuluDungeon
             var skill = _bm.GetEquippedSkill(index);
             var ps = _bm.PlayerSprite;
 
-            // 空槽或攻击类次数耗尽 → 基础攻击兜底（×0.7 无限，点击自动降级）
-            if (skill == null || (ps != null && ps.GetUses(skill) <= 0 && skill.IsAttackClass))
+            // 空槽或攻击类能量不足 → 基础攻击兜底（不耗能量，点击自动降级）
+            if (skill == null || (ps != null && !ps.CanUseSkill(skill) && skill.IsAttackClass))
             {
-                txt.text = "基础攻击 ∞";
+                txt.text = "基础攻击";
                 SetButtonInteractable(btn, true);
                 return;
             }
 
-            int uses = ps != null ? ps.GetUses(skill) : 0;
-            txt.text = $"{skill.skillName} ×{uses}";
-            SetButtonInteractable(btn, uses > 0);
+            bool usable = ps != null && ps.CanUseSkill(skill);
+            int cost = SpriteInstance.EnergyCostOf(skill);
+            txt.text = $"{skill.skillName} ⚡{cost}";
+            SetButtonInteractable(btn, usable);
         }
         private void ToggleSwitchPanel()
         {
             if (switchPanel == null || _gm == null) return;
+            // 强制切换（阵亡）时禁止关闭面板，防止槽位回调失效
+            if (_forcedSwitchMode)
+            {
+                switchPanel.SetActive(true);
+                RefreshSwitchSlots();
+                return;
+            }
             _forcedSwitchMode = false;
             bool active = !switchPanel.activeSelf;
             switchPanel.SetActive(active);
@@ -384,7 +415,7 @@ namespace LuluDungeon
             if (skillBottleButton != null)
             {
                 var label = skillBottleButton.GetComponentInChildren<UnityEngine.UI.Text>();
-                if (label) label.text = $"Skill Bottle x{_gm.playerData.skillBottles}";
+                if (label) label.text = $"Energy Bottle x{_gm.playerData.skillBottles}";
                 SetButtonInteractable(skillBottleButton, _gm.playerData.skillBottles > 0);
             }
         }

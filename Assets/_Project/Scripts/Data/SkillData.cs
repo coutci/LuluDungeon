@@ -105,34 +105,5 @@ namespace LuluDungeon
         }
     }
 
-    /// <summary>
-    /// 技能次数池工具：类型 → 每场战斗次数上限
-    /// 增益/减益/净化共享同一池（supportUses）
-    /// </summary>
-    public static class SkillUses
-    {
-        public const int UltimateMax = 2;
-        public const int BasicMax = 5;
-        public const int PriorityMax = 5;
-        public const int SupportMax = 3;    // 增益/减益/净化共享
-        public const int DefenseMax = 5;
-        public const int HealMax = 3;
-
-        public static int GetMax(SkillType t)
-        {
-            switch (t)
-            {
-                case SkillType.Ultimate: return UltimateMax;
-                case SkillType.Basic: return BasicMax;
-                case SkillType.Priority: return PriorityMax;
-                case SkillType.Buff:
-                case SkillType.Debuff:
-                case SkillType.Cleanse: return SupportMax;
-                case SkillType.Defense: return DefenseMax;
-                case SkillType.Heal: return HealMax;
-                case SkillType.Hazard: return SupportMax;   // 与辅助共享 3 次
-                default: return 0;
-            }
-        }
-    }
+    // 注：v6 起技能次数池（SkillUses）已由能量系统取代（SpriteInstance.energy / EnergyCostOf）
 }

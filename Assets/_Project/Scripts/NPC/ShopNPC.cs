@@ -19,7 +19,7 @@ namespace LuluDungeon
         [Header("商品（设计文档 §7.2）")]
         public string[] itemNames = new string[]
         {
-            "Chip PokeBall", "Normal PokeBall", "Great PokeBall", "Ultra PokeBall", "Heal Bottle", "Revive Bottle", "Skill Bottle"
+            "Chip PokeBall", "Normal PokeBall", "Great PokeBall", "Ultra PokeBall", "Heal Bottle", "Revive Bottle", "Energy Bottle"
         };
         public int[] itemPrices = new int[] { 20, 50, 100, 200, 50, 80, 60 };
 

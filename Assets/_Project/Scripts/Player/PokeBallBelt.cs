@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
 
 namespace LuluDungeon
 {
@@ -61,7 +62,11 @@ namespace LuluDungeon
                 bool keep = si >= 0 && si < slots.Count && slots[si] != null && slots[si].isLoaded;
                 if (!keep)
                 {
-                    Destroy(_balls[i].gameObject);
+                    var go = _balls[i].gameObject;
+                    // 销毁前先禁交互器，避免射线 select 中对象被销毁 → MissingReferenceException 卡死
+                    var inter = go.GetComponent<XRSimpleInteractable>();
+                    if (inter != null) inter.enabled = false;
+                    Destroy(go);
                     _balls.RemoveAt(i);
                 }
             }

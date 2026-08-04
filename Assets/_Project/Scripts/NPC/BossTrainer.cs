@@ -40,10 +40,7 @@ namespace LuluDungeon
         /// </summary>
         public static int TeamSizeForFloor(int floor)
         {
-            if (floor <= 2) return 2;
-            if (floor <= 5) return 3;
-            if (floor <= 7) return 4;
-            return 5;
+            return 2 + floor / 2;   // 0,1→2 / 2,3→3 / 4,5→4 / 6,7→5 / 8,9→6
         }
 
         /// <summary>从怪物池随机抽取队伍（队内不重复），等级按层加成</summary>

@@ -108,6 +108,10 @@ namespace LuluDungeon
         {
             if (Instance != null && Instance != this) { Destroy(gameObject); return; }
             Instance = this;
+            if (xrOrigin == null)
+                xrOrigin = FindFirstObjectByType<XROrigin>();
+            if (xrOrigin == null)
+                Debug.LogError("[Battle] XR Origin not found — 战斗传送功能将不可用！");
         }
 
         /// <summary>
@@ -177,21 +181,22 @@ public void StartBattle(SpriteInstance enemy, bool isBoss = false, Monster sourc
             if (AudioManager.Instance != null) AudioManager.Instance.PlayBgm(BgmType.Battle);
         }
 
-        /// <summary>重置精灵战斗态系数（增益/减益/状态，战斗开始或换人时清零）</summary>
-        private void ResetBattleModifiers(SpriteInstance s)
+        /// <summary>重置精灵战斗态系数。clearHazards=false（敌方换人）时保留沙暴（场地效果跨换人）；速度减益跟精灵走，换人即清</summary>
+        private void ResetBattleModifiers(SpriteInstance s, bool clearHazards = true)
         {
             if (s == null) return;
             s.strengthLayers.Clear();
             s.protectLayers.Clear();
             s.burnTicks.Clear();
             s.poisonTicks.Clear();
-            s.sandTicks.Clear();
+            if (clearHazards) s.sandTicks.Clear();
             s.paralyzeTicks.Clear();
             s.leechSeedTurns = 0;
             s.leechSeedOwner = null;
             s.confusionActive = false;
             s.speedLevel = 0;
             s.speedLevelTurns = 0;
+            s.speedDebuffLevel = 0;
             s.RecalcMods();
         }
 
@@ -455,7 +460,7 @@ public void StartBattle(SpriteInstance enemy, bool isBoss = false, Monster sourc
             if (_state != BattleState.PlayerTurn) return;
             var skill = GetEquippedSkill(skillIndex);
 
-            // 攻击类技能次数耗尽 → 自动降级为基础攻击（×0.7 无限）
+            // 能量不足 → 攻击类自动降级为基础攻击（不耗能量）；非攻击类给出提示
             if (skill == null || !_playerSprite.CanUseSkill(skill))
             {
                 if (skill != null && skill.IsAttackClass)
@@ -463,12 +468,16 @@ public void StartBattle(SpriteInstance enemy, bool isBoss = false, Monster sourc
                     _playerAction = PlayerActionType.BasicAttack;
                     StartResolve();
                 }
+                else if (skill != null)
+                {
+                    OnBattleMessage?.Invoke($"{_playerSprite.spriteName} 能量不足，无法使用 {skill.skillName}！");
+                }
                 return;
             }
 
             _playerAction = PlayerActionType.Skill;
             _playerSkillIndex = skillIndex;
-            _playerSprite.SpendUses(skill);
+            _playerSprite.SpendEnergy(skill);
             StartResolve();
         }
 
@@ -495,13 +504,13 @@ public void StartBattle(SpriteInstance enemy, bool isBoss = false, Monster sourc
             StartResolve();
         }
 
-        /// <summary>锁定技能药水</summary>
+        /// <summary>锁定能量药剂（恢复出战精灵 10 点能量）</summary>
         public void LockPlayerSkillBottle()
         {
             if (_state != BattleState.PlayerTurn) return;
-            if (!GameManager.Instance.HasItem("Skill Bottle")) return;
+            if (!GameManager.Instance.HasItem("Energy Bottle")) return;
 
-            GameManager.Instance.UseItem("Skill Bottle");
+            GameManager.Instance.UseItem("Energy Bottle");
             _playerAction = PlayerActionType.SkillBottle;
             StartResolve();
         }
@@ -509,9 +518,22 @@ public void StartBattle(SpriteInstance enemy, bool isBoss = false, Monster sourc
         /// <summary>锁定切换精灵（消耗本回合行动）</summary>
         public void LockPlayerSwitch(int slotIndex)
         {
-            if (_state != BattleState.PlayerTurn) return;
+            if (_state != BattleState.PlayerTurn)
+            {
+                OnBattleMessage?.Invoke("现在不是切换的时机！");
+                return;
+            }
             var target = GetBeltSprite(slotIndex);
-            if (target == null || !target.IsAlive || target == _playerSprite) return;
+            if (target == null || !target.IsAlive)
+            {
+                OnBattleMessage?.Invoke("该精灵无法出战！");
+                return;
+            }
+            if (target == _playerSprite)
+            {
+                OnBattleMessage?.Invoke($"{target.spriteName} 已经在场上了！");
+                return;
+            }
 
             _playerAction = PlayerActionType.Switch;
             _switchIndex = slotIndex;
@@ -609,8 +631,8 @@ public void StartBattle(SpriteInstance enemy, bool isBoss = false, Monster sourc
             if (playerPriority && !enemyPriority) return true;
             if (!playerPriority && enemyPriority) return false;
             // 同优先级：行动值（含速度层）±10% 扰动
-            float pv = (_playerSprite.speed + _playerSprite.speedLevel) * Random.Range(0.9f, 1.1f);
-            float ev = (_enemySprite.speed + _enemySprite.speedLevel) * Random.Range(0.9f, 1.1f);
+            float pv = (_playerSprite.speed + _playerSprite.speedLevel + _playerSprite.speedDebuffLevel) * Random.Range(0.9f, 1.1f);
+            float ev = (_enemySprite.speed + _enemySprite.speedLevel + _enemySprite.speedDebuffLevel) * Random.Range(0.9f, 1.1f);
             if (Mathf.Abs(pv - ev) < 0.001f) return Random.value < 0.5f;
             return pv > ev;
         }
@@ -667,10 +689,10 @@ public void StartBattle(SpriteInstance enemy, bool isBoss = false, Monster sourc
                     OnBattleMessage?.Invoke($"回复了 {heal:F0} 点 HP！");
                     break;
                 case PlayerActionType.SkillBottle:
-                    OnBattleMessage?.Invoke($"{_playerSprite.spriteName} 使用了技能药水！");
+                    OnBattleMessage?.Invoke($"{_playerSprite.spriteName} 使用了能量药剂！");
                     yield return new WaitForSeconds(0.8f);
-                    _playerSprite.RefillUses(0.5f);
-                    OnBattleMessage?.Invoke("技能次数恢复了 50%！");
+                    _playerSprite.AddEnergy(10);
+                    OnBattleMessage?.Invoke($"{_playerSprite.spriteName} 恢复了 10 点能量！");
                     break;
                 case PlayerActionType.Switch:
                     DoSwitch(_switchIndex);
@@ -825,7 +847,7 @@ public void StartBattle(SpriteInstance enemy, bool isBoss = false, Monster sourc
                     OnBattleMessage?.Invoke($"{attacker.spriteName} 回复了 {h:F0} 点 HP！");
                     break;
                 case SkillType.Hazard:
-                    // 持续伤害状态技（沙暴：3%×5 回合，不可净化）
+                    // 持续伤害状态技（沙暴：4%×5 回合，不可净化）
                     defender.ApplyStatus(StatusEffect.Sandstorm, skill.duration, 1f);
                     OnBattleMessage?.Invoke($"{defender.spriteName} 被沙暴笼罩了！");
                     break;
@@ -902,11 +924,11 @@ public void StartBattle(SpriteInstance enemy, bool isBoss = false, Monster sourc
                 OnBattleMessage?.Invoke($"{defender.spriteName} 陷入了 {GetStatusName(skill.statusEffect)}！");
             }
 
-            // 潮旋：50% 降低对方速度 1 点（持续 3 回合）
-            if (skill.name == "Whirlpool" && Random.value < 0.5f)
+            // 潮旋：必定降低对方速度 1 点（本场永久，最多 -3，可被净化解除）
+            if (skill.name == "Whirlpool")
             {
-                defender.ApplySpeedLevel(-1);
-                OnBattleMessage?.Invoke($"{defender.spriteName} 速度下降了！");
+                defender.ApplyPermanentSpeedDebuff();
+                OnBattleMessage?.Invoke($"{defender.spriteName} 速度永久下降了！({defender.speedDebuffLevel})");
             }
 
             // 藤鞭：10% 降低对方防御 1 层
@@ -952,10 +974,9 @@ public void StartBattle(SpriteInstance enemy, bool isBoss = false, Monster sourc
 
         private void ExecuteCleanse(SpriteInstance attacker, SpriteInstance defender)
         {
-            bool hadBuff = defender.strength > 1f || defender.protect > 1f;
-            defender.CleansePositiveLayers();
+            bool hadBuff = defender.CleansePositiveLayers();
             OnBattleMessage?.Invoke(hadBuff
-                ? $"{defender.spriteName} 的增益被清除了！"
+                ? $"{defender.spriteName} 的增益与速度减益被清除了！"
                 : $"{defender.spriteName} 没有增益可清除…");
 
             // 净化附加效果（按使用者查表）
@@ -1013,6 +1034,7 @@ public void StartBattle(SpriteInstance enemy, bool isBoss = false, Monster sourc
                 if (AudioManager.Instance != null) AudioManager.Instance.PlaySfx("Audio/SFX/sfx_catch");
                 _enemySprite.caughtWith = _ballQuality;
                 _enemySprite.FullHeal();
+                _enemySprite.energy = SpriteInstance.MaxEnergy;   // 捕捉入队：能量回满
 
                 // 经验分配：捕捉到的精灵与最后出战精灵各 70%，其余腰间精灵各 30%
                 var gm = GameManager.Instance;
@@ -1099,7 +1121,6 @@ public void StartBattle(SpriteInstance enemy, bool isBoss = false, Monster sourc
         private IEnumerator HandleEnemyFaint()
         {
             if (_enemyModel != null)
-            if (_enemyModel != null)
                 yield return StartCoroutine(PlayDeathAnimation(_enemySprite));
             if (AudioManager.Instance != null) AudioManager.Instance.PlaySfx("Audio/SFX/sfx_faint_01");
             yield return new WaitForSeconds(0.4f);
@@ -1109,7 +1130,7 @@ public void StartBattle(SpriteInstance enemy, bool isBoss = false, Monster sourc
             {
                 // 下一只满状态登场（重置 buff/状态）
                 _enemySprite = _enemyTeam[_enemyIndex];
-                ResetBattleModifiers(_enemySprite);
+                ResetBattleModifiers(_enemySprite, false);   // 敌方换人：沙暴保留（场地效果跨换人）
                 _enemyDefending = false;
 
                 // 重建敌方模型
@@ -1128,16 +1149,15 @@ public void StartBattle(SpriteInstance enemy, bool isBoss = false, Monster sourc
             }
             else
             {
-                // 队伍耗尽 → 胜利
+                // 队伍耗尽 → 胜利（死亡动画已播，不重复）
                 SetState(BattleState.Victory);
-                yield return StartCoroutine(HandleVictory());
+                yield return StartCoroutine(HandleVictory(false));
             }
         }
 
         private IEnumerator HandlePlayerFaint()
         {
             // 己方死亡动画播完后再处理切换/失败
-            if (_playerModel != null)
             if (_playerModel != null)
                 yield return StartCoroutine(PlayDeathAnimation(_playerSprite));
             if (AudioManager.Instance != null) AudioManager.Instance.PlaySfx("Audio/SFX/sfx_faint_01");
@@ -1291,16 +1311,14 @@ public void StartBattle(SpriteInstance enemy, bool isBoss = false, Monster sourc
             SetState(BattleState.PlayerTurn);
         }
 
-        private IEnumerator HandleVictory()
+        private IEnumerator HandleVictory(bool playDeathAnim = true)
         {
             var gm = GameManager.Instance;
             OnBattleMessage?.Invoke($"击败了 {_enemySprite.spriteName}！");
             if (AudioManager.Instance != null) AudioManager.Instance.PlaySfx("Audio/SFX/sfx_victory");
 
-
-
-            // 敌方死亡动画（播完约 1 秒）后再结算与传送
-            if (_enemyModel != null)
+            // 敌方死亡动画（播完约 1 秒）后再结算与传送（HandleEnemyFaint 已播过时不重复播）
+            if (playDeathAnim && _enemyModel != null)
                 yield return StartCoroutine(PlayDeathAnimation(_enemySprite));
             yield return new WaitForSeconds(0.4f);
 
@@ -1457,35 +1475,35 @@ public void StartBattle(SpriteInstance enemy, bool isBoss = false, Monster sourc
             if (hasCleanse && (_playerSprite.strength > 1f || _playerSprite.protect > 1f) && Random.value < 0.45f)
             {
                 dec.skill = FindSkill(usable, SkillType.Cleanse);
-                _enemySprite.SpendUses(dec.skill);
+                _enemySprite.SpendEnergy(dec.skill);
                 return dec;
             }
             // 2. 自身被降 → Buff 抵消
             if (hasBuffSkill && (_enemySprite.strength < 1f || _enemySprite.protect < 1f) && Random.value < 0.4f)
             {
                 dec.skill = FindSkill(usable, SkillType.Buff);
-                _enemySprite.SpendUses(dec.skill);
+                _enemySprite.SpendEnergy(dec.skill);
                 return dec;
             }
             // 3. 残血预判防御
             if (hasDefense && hpRatio < 0.4f && playerRatio > 0.5f && Random.value < 0.35f)
             {
                 dec.skill = FindSkill(usable, SkillType.Defense);
-                _enemySprite.SpendUses(dec.skill);
+                _enemySprite.SpendEnergy(dec.skill);
                 return dec;
             }
             // 4. 残血回复
             if (hasHeal && hpRatio < 0.25f && Random.value < 0.5f)
             {
                 dec.skill = FindSkill(usable, SkillType.Heal);
-                _enemySprite.SpendUses(dec.skill);
+                _enemySprite.SpendEnergy(dec.skill);
                 return dec;
             }
             // 5. 自身带增益且剩余≥2 → 趁窗口大招
             if (hasUltimate && _enemySprite.HasStrengthBuff() && Random.value < 0.7f)
             {
                 dec.skill = FindSkill(usable, SkillType.Ultimate);
-                _enemySprite.SpendUses(dec.skill);
+                _enemySprite.SpendEnergy(dec.skill);
                 return dec;
             }
 
@@ -1532,7 +1550,7 @@ public void StartBattle(SpriteInstance enemy, bool isBoss = false, Monster sourc
                 }
             }
 
-            _enemySprite.SpendUses(dec.skill);
+            _enemySprite.SpendEnergy(dec.skill);
             return dec;
         }
 
@@ -1650,21 +1668,7 @@ public void StartBattle(SpriteInstance enemy, bool isBoss = false, Monster sourc
             if (AudioManager.Instance != null) AudioManager.Instance.PlayBgm(BgmType.Dungeon);
 
             // 玩家传送回原位（最优先，防止后续异常导致玩家滞留竞技场）
-            // xrOrigin 引用丢失时重新查找（场景重载/引用失效兜底）
-            if (xrOrigin == null)
-            {
-                var xro = FindFirstObjectByType<XROrigin>();
-                if (xro != null) xrOrigin = xro;
-            }
-            _battleAnchor = null;
-            if (xrOrigin != null)
-            {
-                xrOrigin.transform.position = _playerOriginPos;
-                xrOrigin.transform.rotation = _playerOriginRot;
-                // 传送后短暂锁定原位，抵消无头显追踪漂移把玩家拉离
-                if (_originLockCoroutine != null) StopCoroutine(_originLockCoroutine);
-                _originLockCoroutine = StartCoroutine(LockOriginAt(_playerOriginPos, _playerOriginRot, 0.8f));
-            }
+            RestorePlayerPosition();
 
             bool removed = _state == BattleState.Victory;
             if (_sourceMonster != null)
@@ -1693,6 +1697,31 @@ public void StartBattle(SpriteInstance enemy, bool isBoss = false, Monster sourc
             var gm = GameManager.Instance;
             if (gm != null) gm.SetBattleState(false);
 
+        }
+
+        /// <summary>战斗结束恢复玩家位置：xrOrigin 丢失时重新查找，仍失败延迟一帧重试并报错</summary>
+        private void RestorePlayerPosition()
+        {
+            _battleAnchor = null;
+            if (xrOrigin == null)
+                xrOrigin = FindFirstObjectByType<XROrigin>();
+            if (xrOrigin != null)
+            {
+                xrOrigin.transform.position = _playerOriginPos;
+                xrOrigin.transform.rotation = _playerOriginRot;
+                // 传送后短暂锁定原位，抵消无头显追踪漂移把玩家拉离
+                if (_originLockCoroutine != null) StopCoroutine(_originLockCoroutine);
+                _originLockCoroutine = StartCoroutine(LockOriginAt(_playerOriginPos, _playerOriginRot, 0.8f));
+                return;
+            }
+            Debug.LogError("[Battle] XR Origin 未找到，玩家未能传回原位！延迟一帧重试…");
+            StartCoroutine(RestorePlayerPositionDelayed());
+        }
+
+        private IEnumerator RestorePlayerPositionDelayed()
+        {
+            yield return null;
+            RestorePlayerPosition();
         }
 
         /// <summary>短暂锁定 origin 在指定位置（战斗结束回原位后防追踪漂移拉离）</summary>

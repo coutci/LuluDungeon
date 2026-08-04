@@ -11,8 +11,8 @@ namespace LuluDungeon
     [System.Serializable]
     public class SaveData
     {
-        // 存档版本：v2 = 新楼层体系（0 层起点 → 9 层 Boss，楼梯门控）；旧档直接作废
-        public int saveVersion = 2;
+        // 存档版本：v3 = 能量系统（取代次数池）+ 技能池索引；v2 旧档自动迁移
+        public int saveVersion = 3;
 
         // 保存时间（yyyy-MM-dd HH:mm:ss，主菜单列表显示用）
         public string saveTime;
@@ -56,19 +56,11 @@ namespace LuluDungeon
         public float g_atk = 1f;
         public float speed = 6f;
 
-        // 技能次数池（旧档缺失时默认满）
-        public int ultimateUses = SkillUses.UltimateMax;
-        public int attackUses = SkillUses.BasicMax;
-        public int priorityUses = SkillUses.PriorityMax;
-        public int supportUses = SkillUses.SupportMax;
-        public int defenseUses = SkillUses.DefenseMax;
-        public int healUses = SkillUses.HealMax;
+        // 能量（v3；v2 旧档缺失时保持初始值 15 = 满能量）
+        public int energy = SpriteInstance.MaxEnergy;
 
-        // 装备的技能索引（-1 = 未装备）
+        // 装备的技能：技能池索引（-1 = 未装备；v2 旧档为槽位索引，迁移语义与前 3 技能一致）
         public List<int> equippedSkills = new List<int>();
-
-        // 每技能槽位独立剩余次数（新档；旧档为 null 时按旧类型池迁移）
-        public int[] skillUses;
 
         // 死亡标志（旧档缺失时按 currentHP<=0 推导）
         public bool isDead;
@@ -117,7 +109,7 @@ namespace LuluDungeon
 
             var save = new SaveData
             {
-                saveVersion = 2,
+                saveVersion = 3,
                 saveTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
                 currentFloor = gm.playerData.currentFloor,
                 bossDefeated = gm.playerData.bossDefeated,
@@ -158,18 +150,20 @@ namespace LuluDungeon
                     g_hp = sprite.g_hp,
                     g_atk = sprite.g_atk,
                     speed = sprite.speed,
-                    ultimateUses = sprite.ultimateUses,
-                    attackUses = sprite.attackUses,
-                    priorityUses = sprite.priorityUses,
-                    supportUses = sprite.supportUses,
-                    defenseUses = sprite.defenseUses,
-                    healUses = sprite.healUses,
-                    skillUses = sprite.skillUses != null ? (int[])sprite.skillUses.Clone() : null,
+                    energy = sprite.energy,
                     isDead = sprite.isDead
                 };
+                // 技能池索引：spriteID → config → pool 定位技能身份（null 存 -1）
+                var config = gm.allSpriteConfigs.Find(s => s.name == sprite.spriteID);
+                var pool = config != null
+                    ? new[] { config.skill1, config.skill2, config.skill3, config.skill4, config.skill5 }
+                    : null;
                 for (int i = 0; i < sprite.skills.Length; i++)
                 {
-                    entry.equippedSkills.Add(sprite.skills[i] != null ? i : -1);
+                    int idx = -1;
+                    if (sprite.skills[i] != null && pool != null)
+                        idx = System.Array.IndexOf(pool, sprite.skills[i]);
+                    entry.equippedSkills.Add(idx);
                 }
                 save.sprites.Add(entry);
             }
@@ -206,7 +200,7 @@ namespace LuluDungeon
             var save = LoadSaveData(slot);
             if (save == null) return false;
 
-            // 版本校验：v2 之前的旧档（10~0 楼层语义）不兼容，作废重置
+            // 版本校验：v3 = 能量系统（旧档自动迁移：能量满、技能按池索引恢复）；v2 之前的旧档（10~0 楼层语义）作废
             if (save.saveVersion < 2)
             {
                 Debug.LogWarning($"[DataManager] Old save version detected in slot {slot}, discarding.");
@@ -248,20 +242,17 @@ namespace LuluDungeon
                     sprite.protect = entry.protect;
                     sprite.exp = entry.exp;
                     sprite.caughtWith = entry.caughtWith;
-                    sprite.ultimateUses = entry.ultimateUses;
-                    sprite.attackUses = entry.attackUses;
-                    sprite.priorityUses = entry.priorityUses;
-                    sprite.supportUses = entry.supportUses;
-                    sprite.defenseUses = entry.defenseUses;
-                    sprite.healUses = entry.healUses;
+                    sprite.energy = entry.energy;
 
-                    // 装备技能：新档按存档索引；旧档（空）迁移 = 前 3 槽
+                    // 装备技能：先清空 5 槽（构造器已填满池技能），再按存档的技能池索引恢复
+                    // v2 旧档 equippedSkills 为槽位索引（0,1,2,-1,-1）→ 恢复为池前 3 技能（与迁移语义一致）
                     var pool = new[] { config.skill1, config.skill2, config.skill3, config.skill4, config.skill5 };
+                    for (int i = 0; i < 5; i++) sprite.skills[i] = null;
                     if (entry.equippedSkills != null && entry.equippedSkills.Count >= 3)
                     {
-                        for (int i = 0; i < 3 && i < entry.equippedSkills.Count; i++)
+                        for (int i = 0; i < 5; i++)
                         {
-                            int idx = entry.equippedSkills[i];
+                            int idx = i < entry.equippedSkills.Count ? entry.equippedSkills[i] : -1;
                             sprite.skills[i] = (idx >= 0 && idx < pool.Length) ? pool[idx] : null;
                         }
                     }
@@ -270,17 +261,6 @@ namespace LuluDungeon
                         sprite.skills[0] = pool[0];
                         sprite.skills[1] = pool[1];
                         sprite.skills[2] = pool[2];
-                    }
-
-                    // 技能次数：新档按槽位恢复；旧档（字段缺失）按旧类型池迁移
-                    if (entry.skillUses != null && entry.skillUses.Length >= 5)
-                    {
-                        sprite.skillUses = (int[])entry.skillUses.Clone();
-                    }
-                    else
-                    {
-                        for (int i = 0; i < 5; i++)
-                            sprite.skillUses[i] = sprite.skills[i] != null ? sprite.GetUses(sprite.skills[i].skillType) : 0;
                     }
 
                     // 死亡标志：新档按存档；旧档（缺失）按 HP<=0 推导

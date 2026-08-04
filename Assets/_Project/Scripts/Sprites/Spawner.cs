@@ -140,8 +140,6 @@ namespace LuluDungeon
             inst.skills[3] = null;
             inst.skills[4] = null;
 
-            // 重排后按新槽位重置每技能独立次数
-            inst.ResetAbilityUses();
         }
     }
 }

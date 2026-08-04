@@ -55,7 +55,7 @@ namespace LuluDungeon
         private GameObject _systemRoot;
         private Text _systemInfoText;
 
-        private enum View { Home, Items, Sprites, System }
+        private enum View { Home, Items, Sprites, System, SkillEdit }
         private View _view = View.Home;
 
         private class ItemSlot
@@ -66,6 +66,16 @@ namespace LuluDungeon
         }
         private readonly List<ItemSlot> _slots = new List<ItemSlot>();
         private readonly List<GameObject> _spriteRows = new List<GameObject>();
+
+        // 精灵背包分页（每页 6 只）
+        private int _spritePage;
+
+        // 技能编辑
+        private GameObject _skillEditRoot;
+        private readonly List<GameObject> _skillEditRows = new List<GameObject>();
+        private readonly List<Text> _skillEditRowTexts = new List<Text>();
+        private readonly bool[] _skillSelection = new bool[5];
+        private SpriteInstance _editingSprite;
 
         private float _statusTimer;
 
@@ -199,7 +209,13 @@ namespace LuluDungeon
             _statusText = CreateText(canvasGo.transform, "", StatusColor, 17, new Vector3(-220f, -205f, 0f));
 
             CreateButton(canvasGo.transform, "X", new Vector3(300f, 195f, 0f), new Vector2(70f, 60f), BtnRed, Close, 24);
-            _backBtn = CreateButton(canvasGo.transform, "返回", new Vector3(-300f, 195f, 0f), new Vector2(110f, 60f), BtnOrange, () => { _view = View.Home; ShowView(); }, 20);
+            _backBtn = CreateButton(canvasGo.transform, "返回", new Vector3(-300f, 195f, 0f), new Vector2(110f, 60f), BtnOrange, () =>
+            {
+                // 技能编辑返回精灵背包，其余返回主页
+                if (_view == View.SkillEdit) { _editingSprite = null; _view = View.Sprites; }
+                else _view = View.Home;
+                ShowView();
+            }, 20);
 
             _homeRoot = new GameObject("HomeRoot");
             _homeRoot.transform.SetParent(canvasGo.transform, false);
@@ -213,6 +229,7 @@ namespace LuluDungeon
             BuildHomeView();
             BuildItemsGrid();
             BuildSystemView();
+            BuildSkillEditView();
         }
 
         private void BuildHomeView()
@@ -271,6 +288,7 @@ namespace LuluDungeon
             _itemsRoot.SetActive(_view == View.Items);
             _spritesRoot.SetActive(_view == View.Sprites);
             _systemRoot.SetActive(_view == View.System);
+            if (_skillEditRoot != null) _skillEditRoot.SetActive(_view == View.SkillEdit);
             if (_backBtn != null) _backBtn.SetActive(_view != View.Home);
 
             _titleText.text = _view switch
@@ -279,6 +297,7 @@ namespace LuluDungeon
                 View.Items => "物品背包",
                 View.Sprites => "精灵背包",
                 View.System => "系统",
+                View.SkillEdit => "修改技能",
                 _ => "个人面板"
             };
 
@@ -286,8 +305,9 @@ namespace LuluDungeon
             {
                 case View.Home: break;
                 case View.Items: RefreshItemsView(); break;
-                case View.Sprites: RefreshSpritesView(); break;
+                case View.Sprites: _spritePage = 0; RefreshSpritesView(); break;
                 case View.System: RefreshSystemView(); break;
+                case View.SkillEdit: RefreshSkillEditView(); break;
             }
         }
 
@@ -328,7 +348,7 @@ namespace LuluDungeon
             var pd = gm.playerData;
 
             // 8 种物品：有数量的紧凑排列，跳过空格子
-            string[] itemNames = { "芯片球", "普通球", "高级球", "超级球", "治疗药水", "复活药水", "经验瓶", "技能药水" };
+            string[] itemNames = { "芯片球", "普通球", "高级球", "超级球", "治疗药水", "复活药水", "经验瓶", "能量药剂" };
             int[] itemCounts =
             {
                 pd.chipPokeBalls, pd.normalPokeBalls, pd.greatPokeBalls, pd.ultraPokeBalls,
@@ -365,18 +385,27 @@ namespace LuluDungeon
             var gm = GameManager.Instance;
             if (gm == null) return;
 
+            // 先禁交互再销毁（防射线悬停/选中时 MissingReferenceException 卡死交互器）
             foreach (var row in _spriteRows)
-                if (row != null) Destroy(row);
+            {
+                if (row == null) continue;
+                foreach (var inter in row.GetComponentsInChildren<XRSimpleInteractable>())
+                    inter.enabled = false;
+                Destroy(row);
+            }
             _spriteRows.Clear();
 
             var bag = gm.playerData.spriteBag;
-            const int maxRows = 6;
-            int shown = Mathf.Min(maxRows, bag.Count);
+            const int perPage = 6;
+            int totalPages = Mathf.Max(1, Mathf.CeilToInt(bag.Count / (float)perPage));
+            _spritePage = Mathf.Clamp(_spritePage, 0, totalPages - 1);
+            int start = _spritePage * perPage;
+            int shown = Mathf.Min(perPage, bag.Count - start);
             float[] ys = { 140f, 90f, 40f, -10f, -60f, -110f };
 
             for (int i = 0; i < shown; i++)
             {
-                var sprite = bag[i];
+                var sprite = bag[start + i];
                 float y = ys[i];
                 int beltSlot = gm.GetBeltSlotOf(sprite);
 
@@ -396,29 +425,182 @@ namespace LuluDungeon
                 string name = Truncate(sprite.spriteName, 4);
                 string info = name + " Lv." + sprite.level + " " + ballName + " " + posText + " " + hpText;
 
-                var row = new GameObject("SpriteRow_" + i);
+                var row = new GameObject("SpriteRow_" + (start + i));
                 row.transform.SetParent(_spritesRoot.transform, false);
 
                 CreateText(row.transform, info,
                     sprite.IsAlive ? TextDark : TextMuted,
                     16, new Vector3(-235f, y, 0f));
 
+                // 列1 主操作（装/放/复活），列2 改技能；全部收在面板内（原 390 超界）
                 if (!sprite.IsAlive)
-                {
-                    // 阵亡：不可装到腰间（按钮灰显）；仅可用复活药水复活
-                    CreateButton(row.transform, "装到腰间", new Vector3(250f, y, 0f), new Vector2(150f, 45f), BtnGreen, () => { }, 18, false);
-                    CreateButton(row.transform, "复活", new Vector3(390f, y, 0f), new Vector2(100f, 45f), ReviveFill, () => ReviveSprite(sprite), 18, gm.HasItem("Revive Bottle"));
-                }
+                    CreateButton(row.transform, "复活", new Vector3(85f, y, 0f), new Vector2(130f, 45f), ReviveFill, () => ReviveSprite(sprite), 18, gm.HasItem("Revive Bottle"));
                 else if (beltSlot >= 0)
-                    CreateButton(row.transform, "放回背包", new Vector3(250f, y, 0f), new Vector2(150f, 45f), BtnOrange, () => UnequipFromBelt(sprite), 18);
+                    CreateButton(row.transform, "放回背包", new Vector3(85f, y, 0f), new Vector2(130f, 45f), BtnOrange, () => UnequipFromBelt(sprite), 18);
                 else
-                    CreateButton(row.transform, "装到腰间", new Vector3(250f, y, 0f), new Vector2(150f, 45f), BtnGreen, () => EquipToBelt(sprite), 18);
+                    CreateButton(row.transform, "装到腰间", new Vector3(85f, y, 0f), new Vector2(130f, 45f), BtnGreen, () => EquipToBelt(sprite), 18);
+                CreateButton(row.transform, "改技能", new Vector3(225f, y, 0f), new Vector2(130f, 45f), BtnYellow, () => OpenSkillEditor(sprite), 18);
 
                 _spriteRows.Add(row);
             }
 
-            if (bag.Count > maxRows)
-                CreateText(_spritesRoot.transform, "…共 " + bag.Count + " 只，仅显示前 " + maxRows + " 只", TextMuted, 15, new Vector3(0f, -165f, 0f));
+            // 分页提示（随刷新销毁重建，杜绝数字重叠）
+            var tipGo = new GameObject("SpritePageTip");
+            tipGo.transform.SetParent(_spritesRoot.transform, false);
+            tipGo.transform.localPosition = new Vector3(0f, -160f, 0f);
+            CreateText(tipGo.transform, "第 " + (_spritePage + 1) + "/" + totalPages + " 页 · 共 " + bag.Count + " 只", TextMuted, 15, Vector3.zero);
+            _spriteRows.Add(tipGo);
+
+            // 翻页按钮（首页/末页对应禁用）
+            if (totalPages > 1)
+            {
+                var prev = CreateButton(_spritesRoot.transform, "上一页", new Vector3(-160f, -210f, 0f), new Vector2(130f, 45f), BtnYellow, () => { _spritePage--; RefreshSpritesView(); }, 18, _spritePage > 0);
+                _spriteRows.Add(prev);
+                var next = CreateButton(_spritesRoot.transform, "下一页", new Vector3(160f, -210f, 0f), new Vector2(130f, 45f), BtnYellow, () => { _spritePage++; RefreshSpritesView(); }, 18, _spritePage < totalPages - 1);
+                _spriteRows.Add(next);
+            }
+        }
+
+        // ===== 技能编辑 =====
+        private void BuildSkillEditView()
+        {
+            _skillEditRoot = new GameObject("SkillEditRoot");
+            _skillEditRoot.transform.SetParent(_panelCanvas.transform, false);
+
+            float[] ys = { 140f, 90f, 40f, -10f, -60f };
+            for (int i = 0; i < 5; i++)
+            {
+                int idx = i;
+                var btn = CreateButton(_skillEditRoot.transform, "", new Vector3(0f, ys[i], 0f), new Vector2(560f, 48f), BtnYellow, () => ToggleSkill(idx), 18);
+                _skillEditRows.Add(btn);
+                _skillEditRowTexts.Add(btn.GetComponentInChildren<Text>());
+            }
+
+            CreateButton(_skillEditRoot.transform, "取消", new Vector3(-150f, -130f, 0f), new Vector2(150f, 55f), BtnRed, CloseSkillEditor, 20);
+            CreateButton(_skillEditRoot.transform, "确定", new Vector3(150f, -130f, 0f), new Vector2(150f, 55f), BtnGreen, ApplySkillEdit, 20);
+            CreateText(_skillEditRoot.transform, "从技能池中选择最多 3 个技能（装配后自动保存）", TextMuted, 15, new Vector3(0f, -195f, 0f));
+            _skillEditRoot.SetActive(false);
+        }
+
+        private static SkillData PoolSkill(SpriteData config, int i)
+        {
+            return i switch
+            {
+                0 => config.skill1,
+                1 => config.skill2,
+                2 => config.skill3,
+                3 => config.skill4,
+                _ => config.skill5
+            };
+        }
+
+        private void OpenSkillEditor(SpriteInstance sprite)
+        {
+            if (sprite == null) return;
+            _editingSprite = sprite;
+            var gm = GameManager.Instance;
+            var config = gm != null ? gm.allSpriteConfigs.Find(c => c.name == sprite.spriteID) : null;
+            for (int i = 0; i < 5; i++)
+            {
+                bool selected = false;
+                var poolSkill = config != null ? PoolSkill(config, i) : null;
+                if (poolSkill != null)
+                    for (int k = 0; k < sprite.skills.Length; k++)
+                        if (sprite.skills[k] == poolSkill) { selected = true; break; }
+                _skillSelection[i] = selected;
+            }
+            _view = View.SkillEdit;
+            ShowView();
+        }
+
+        private void ToggleSkill(int index)
+        {
+            if (_editingSprite == null || index < 0 || index >= 5) return;
+            if (_skillSelection[index])
+            {
+                _skillSelection[index] = false;
+            }
+            else
+            {
+                int selectedCount = 0;
+                for (int i = 0; i < 5; i++) if (_skillSelection[i]) selectedCount++;
+                if (selectedCount >= 3)
+                {
+                    ShowStatus("最多只能选择 3 个技能！");
+                    return;
+                }
+                _skillSelection[index] = true;
+            }
+            RefreshSkillEditView();
+        }
+
+        private void RefreshSkillEditView()
+        {
+            if (_editingSprite == null || _skillEditRows.Count < 5) return;
+            var gm = GameManager.Instance;
+            var config = gm != null ? gm.allSpriteConfigs.Find(c => c.name == _editingSprite.spriteID) : null;
+
+            for (int i = 0; i < 5; i++)
+            {
+                var skill = config != null ? PoolSkill(config, i) : null;
+                string typeName = skill != null ? SkillTypeName(skill.skillType) : "";
+                int cost = skill != null ? SpriteInstance.EnergyCostOf(skill) : 0;
+                string label = skill != null
+                    ? (_skillSelection[i] ? "✓ " : "") + skill.skillName + "（" + typeName + " ⚡" + cost + "）"
+                    : "（空）";
+                if (_skillEditRowTexts[i] != null)
+                {
+                    _skillEditRowTexts[i].text = label;
+                    _skillEditRowTexts[i].color = _skillSelection[i]
+                        ? new Color(0.10f, 0.55f, 0.25f)
+                        : TextDark;
+                }
+            }
+        }
+
+        private static string SkillTypeName(SkillType t)
+        {
+            return t switch
+            {
+                SkillType.Basic => "普攻",
+                SkillType.Ultimate => "大招",
+                SkillType.Priority => "先制",
+                SkillType.Buff => "增益",
+                SkillType.Debuff => "减益",
+                SkillType.Cleanse => "净化",
+                SkillType.Defense => "防御",
+                SkillType.Heal => "回复",
+                SkillType.Hazard => "持续",
+                _ => ""
+            };
+        }
+
+        private void ApplySkillEdit()
+        {
+            if (_editingSprite == null) return;
+            var gm = GameManager.Instance;
+            var config = gm != null ? gm.allSpriteConfigs.Find(c => c.name == _editingSprite.spriteID) : null;
+            if (config != null)
+            {
+                for (int i = 0; i < _editingSprite.skills.Length; i++) _editingSprite.skills[i] = null;
+                int slot = 0;
+                for (int i = 0; i < 5 && slot < 3; i++)
+                    if (_skillSelection[i]) _editingSprite.skills[slot++] = PoolSkill(config, i);
+
+                var dm = DataManager.Instance;
+                if (dm != null) dm.AutoSave();
+                ShowStatus(_editingSprite.spriteName + " 的技能已更新！");
+            }
+            _editingSprite = null;
+            _view = View.Sprites;
+            ShowView();
+        }
+
+        private void CloseSkillEditor()
+        {
+            _editingSprite = null;
+            _view = View.Sprites;
+            ShowView();
         }
 
         // ===== 腰带操作 =====

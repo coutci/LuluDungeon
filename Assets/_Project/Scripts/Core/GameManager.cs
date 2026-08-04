@@ -64,16 +64,9 @@ namespace LuluDungeon
 
         public SkillData[] skills = new SkillData[5];
 
-        // ---- 技能次数池（持久资源，跨战斗不恢复；升级重置 / 技能药水恢复）----
-        public int ultimateUses = SkillUses.UltimateMax;
-        public int attackUses = SkillUses.BasicMax;
-        public int priorityUses = SkillUses.PriorityMax;
-        public int supportUses = SkillUses.SupportMax;   // 增益/减益/净化共享
-        public int defenseUses = SkillUses.DefenseMax;
-        public int healUses = SkillUses.HealMax;
-
-        // ---- 每技能独立次数（与 skills 槽位一一对应，优先于旧类型池）----
-        public int[] skillUses = new int[5];
+        // ---- 能量（持久资源，跨战斗不恢复；升级/捕捉回满；能量药剂 +10）----
+        public const int MaxEnergy = 15;
+        public int energy = MaxEnergy;
 
         // ---- 战斗状态（v5：各层独立计时，概率取最大，效果不叠加）----
         public System.Collections.Generic.List<StatusTick> burnTicks = new System.Collections.Generic.List<StatusTick>();
@@ -86,8 +79,9 @@ namespace LuluDungeon
         public bool confusionActive;            // 混乱：行动时 30% 攻击自己（×0.8），1 回合
         public System.Collections.Generic.List<BuffLayer> strengthLayers = new System.Collections.Generic.List<BuffLayer>();
         public System.Collections.Generic.List<BuffLayer> protectLayers = new System.Collections.Generic.List<BuffLayer>();
-        public int speedLevel;                  // 速度层 ±1 点/层（最多 ±3 点）
-        public int speedLevelTurns;             // 速度层剩余回合
+        public int speedLevel;                  // 速度增益层 ±1 点/层（最多 +3 点，3 回合）
+        public int speedLevelTurns;             // 速度增益层剩余回合
+        public int speedDebuffLevel;            // 速度减益层 -1 点/层（最多 -3，本场永久，可净化解除）
 
         /// <summary>是否存活：isDead 为唯一真相源（所有扣血点需同步 SyncDeathFlag）</summary>
         public bool IsAlive => !isDead;
@@ -103,7 +97,6 @@ namespace LuluDungeon
         {
             var c = (SpriteInstance)MemberwiseClone();
             if (skills != null) c.skills = (SkillData[])skills.Clone();
-            if (skillUses != null) c.skillUses = (int[])skillUses.Clone();
             return c;
         }
 
@@ -136,7 +129,7 @@ namespace LuluDungeon
             skills[2] = data.skill3;
             skills[3] = data.skill4;
             skills[4] = data.skill5;
-            ResetAbilityUses();
+            energy = MaxEnergy;   // 初始能量满
         }
 
         /// <summary>
@@ -175,62 +168,46 @@ namespace LuluDungeon
                 maxHP += hpPerLv * g_hp;
                 attack += atkPerLv * g_atk;
             }
-            ResetAbilityUses();
-            currentHP = maxHP;
+            energy = MaxEnergy;   // 升级回满能量
+            currentHP = maxHP;    // 升级全回复
         }
 
-        // ---- 次数池 ----
-        public void ResetAbilityUses()
+        // ---- 能量系统（v6：取代次数池）----
+        /// <summary>技能能量消耗：大招5 / 普攻·先制2 / 增益减益·净化·沙暴2 / 回复3 / 防御1；基础攻击不消耗</summary>
+        public static int EnergyCostOf(SkillData skill)
         {
-            ultimateUses = SkillUses.UltimateMax;
-            attackUses = SkillUses.BasicMax;
-            priorityUses = SkillUses.PriorityMax;
-            supportUses = SkillUses.SupportMax;
-            defenseUses = SkillUses.DefenseMax;
-            healUses = SkillUses.HealMax;
-
-            // 每技能独立次数：与 skills 槽位一一对应
-            if (skillUses == null || skillUses.Length != 5) skillUses = new int[5];
-            for (int i = 0; i < 5; i++)
-                skillUses[i] = skills[i] != null ? SkillUses.GetMax(skills[i].skillType) : 0;
-        }
-
-        /// <summary>
-        /// 技能药水：所有类型次数恢复 上限×percent（向上取整，不超上限）
-        /// </summary>
-        public void RefillUses(float percent)
-        {
-            ultimateUses = Mathf.Min(SkillUses.UltimateMax, ultimateUses + Mathf.CeilToInt(SkillUses.UltimateMax * percent));
-            attackUses = Mathf.Min(SkillUses.BasicMax, attackUses + Mathf.CeilToInt(SkillUses.BasicMax * percent));
-            priorityUses = Mathf.Min(SkillUses.PriorityMax, priorityUses + Mathf.CeilToInt(SkillUses.PriorityMax * percent));
-            supportUses = Mathf.Min(SkillUses.SupportMax, supportUses + Mathf.CeilToInt(SkillUses.SupportMax * percent));
-            defenseUses = Mathf.Min(SkillUses.DefenseMax, defenseUses + Mathf.CeilToInt(SkillUses.DefenseMax * percent));
-            healUses = Mathf.Min(SkillUses.HealMax, healUses + Mathf.CeilToInt(SkillUses.HealMax * percent));
-
-            // 每技能独立次数恢复（保留旧类型池同步，兼容旧逻辑）
-            if (skillUses == null || skillUses.Length != 5) skillUses = new int[5];
-            for (int i = 0; i < 5; i++)
+            if (skill == null) return 0;
+            switch (skill.skillType)
             {
-                if (skills[i] == null) continue;
-                int max = SkillUses.GetMax(skills[i].skillType);
-                skillUses[i] = Mathf.Min(max, skillUses[i] + Mathf.CeilToInt(max * percent));
-            }
-        }
-
-        public int GetUses(SkillType t)
-        {
-            switch (t)
-            {
-                case SkillType.Ultimate: return ultimateUses;
-                case SkillType.Basic: return attackUses;
-                case SkillType.Priority: return priorityUses;
+                case SkillType.Ultimate: return 5;
+                case SkillType.Basic: return 2;
+                case SkillType.Priority: return 2;
                 case SkillType.Buff:
                 case SkillType.Debuff:
-                case SkillType.Cleanse: return supportUses;
-                case SkillType.Defense: return defenseUses;
-                case SkillType.Heal: return healUses;
+                case SkillType.Cleanse: return 2;
+                case SkillType.Defense: return 1;
+                case SkillType.Heal: return 3;
+                case SkillType.Hazard: return 2;
                 default: return 0;
             }
+        }
+
+        /// <summary>该技能是否可用（能量足够）</summary>
+        public bool CanUseSkill(SkillData skill)
+        {
+            return skill != null && energy >= EnergyCostOf(skill);
+        }
+
+        /// <summary>释放技能消耗能量（基础攻击不调用）</summary>
+        public void SpendEnergy(SkillData skill)
+        {
+            energy = Mathf.Max(0, energy - EnergyCostOf(skill));
+        }
+
+        /// <summary>能量药剂：回复出战精灵 10 点（不超上限）</summary>
+        public void AddEnergy(int amount)
+        {
+            energy = Mathf.Min(MaxEnergy, energy + amount);
         }
 
         /// <summary>技能所在槽位索引，-1 = 不在技能列表</summary>
@@ -240,43 +217,6 @@ namespace LuluDungeon
             for (int i = 0; i < skills.Length; i++)
                 if (skills[i] == skill) return i;
             return -1;
-        }
-
-        /// <summary>按技能实例查询独立剩余次数（与技能槽位对应）</summary>
-        public int GetUses(SkillData skill)
-        {
-            int idx = IndexOfSkill(skill);
-            return idx >= 0 ? skillUses[idx] : 0;
-        }
-
-        public void SpendUses(SkillType t)
-        {
-            switch (t)
-            {
-                case SkillType.Ultimate: ultimateUses = Mathf.Max(0, ultimateUses - 1); break;
-                case SkillType.Basic: attackUses = Mathf.Max(0, attackUses - 1); break;
-                case SkillType.Priority: priorityUses = Mathf.Max(0, priorityUses - 1); break;
-                case SkillType.Buff:
-                case SkillType.Debuff:
-                case SkillType.Cleanse: supportUses = Mathf.Max(0, supportUses - 1); break;
-                case SkillType.Defense: defenseUses = Mathf.Max(0, defenseUses - 1); break;
-                case SkillType.Heal: healUses = Mathf.Max(0, healUses - 1); break;
-            }
-        }
-
-        /// <summary>按技能实例消耗独立次数（与技能槽位对应）</summary>
-        public void SpendUses(SkillData skill)
-        {
-            int idx = IndexOfSkill(skill);
-            if (idx >= 0) skillUses[idx] = Mathf.Max(0, skillUses[idx] - 1);
-        }
-
-        /// <summary>
-        /// 该技能是否可用（次数>0）
-        /// </summary>
-        public bool CanUseSkill(SkillData skill)
-        {
-            return skill != null && GetUses(skill) > 0;
         }
 
         // ---- 状态效果（v5）----
@@ -389,14 +329,17 @@ namespace LuluDungeon
             RecalcMods();
         }
 
-        /// <summary>清除全部增益层（净化用；减益不清）</summary>
-        public void CleansePositiveLayers()
+        /// <summary>清除全部增益层 + 速度减益层（净化用；攻防减益层与沙暴不清）</summary>
+        public bool CleansePositiveLayers()
         {
+            bool cleared = false;
             for (int i = strengthLayers.Count - 1; i >= 0; i--)
-                if (strengthLayers[i].amount > 0) strengthLayers.RemoveAt(i);
+                if (strengthLayers[i].amount > 0) { strengthLayers.RemoveAt(i); cleared = true; }
             for (int i = protectLayers.Count - 1; i >= 0; i--)
-                if (protectLayers[i].amount > 0) protectLayers.RemoveAt(i);
+                if (protectLayers[i].amount > 0) { protectLayers.RemoveAt(i); cleared = true; }
+            if (speedDebuffLevel < 0) { speedDebuffLevel = 0; cleared = true; }
             RecalcMods();
+            return cleared;
         }
 
         /// <summary>当前防御正层数（防御指令用）</summary>
@@ -414,11 +357,17 @@ namespace LuluDungeon
             return false;
         }
 
-        /// <summary>速度层：±1 点/层（最多 ±3），持续 3 回合（当前回合生效）</summary>
+        /// <summary>速度增益层：+1 点/层（最多 +3），持续 3 回合（当前回合生效；鳐鱼净化附加用）</summary>
         public void ApplySpeedLevel(int delta)
         {
-            speedLevel = Mathf.Clamp(speedLevel + delta, -3, 3);
+            speedLevel = Mathf.Clamp(speedLevel + delta, 0, 3);
             speedLevelTurns = 3;
+        }
+
+        /// <summary>速度减益层：-1 点/层（最多 -3），本场永久，可被净化解除（潮旋）</summary>
+        public void ApplyPermanentSpeedDebuff()
+        {
+            speedDebuffLevel = Mathf.Clamp(speedDebuffLevel - 1, -3, 0);
         }
 
         /// <summary>重算攻防系数</summary>
@@ -449,7 +398,7 @@ namespace LuluDungeon
         public int healBottles = 0;
         public int reviveBottles = 0;   // 复活药水
         public int expBottles = 0;      // 经验瓶
-        public int skillBottles = 0;    // 技能药水
+        public int skillBottles = 0;    // 能量药剂（原技能药水，恢复出战精灵 10 能量）
         public List<SpriteInstance> spriteBag = new List<SpriteInstance>();
         public int activeSpriteIndex = 0;
         public List<PokeBallSlot> pokeBallSlots = new List<PokeBallSlot>();
@@ -518,7 +467,11 @@ namespace LuluDungeon
         
 
             // 全局音频:确保 AudioManager 存在(跨场景持久)
-            AudioManager.EnsureInstance();}
+            AudioManager.EnsureInstance();
+
+            // 手柄射线末端光点（常驻，跨场景）
+            RayPointerDot.Ensure();
+        }
 
         private void Start()
         {
@@ -774,7 +727,7 @@ namespace LuluDungeon
                 case "Heal Bottle": playerData.healBottles += count; break;
                 case "Revive Bottle": playerData.reviveBottles += count; break;
                 case "Exp Bottle": playerData.expBottles += count; break;
-                case "Skill Bottle": playerData.skillBottles += count; break;
+                case "Energy Bottle": playerData.skillBottles += count; break;
             }
         }
 
@@ -789,7 +742,7 @@ namespace LuluDungeon
                 "Heal Bottle" => playerData.healBottles > 0,
                 "Revive Bottle" => playerData.reviveBottles > 0,
                 "Exp Bottle" => playerData.expBottles > 0,
-                "Skill Bottle" => playerData.skillBottles > 0,
+                "Energy Bottle" => playerData.skillBottles > 0,
                 _ => false
             };
         }
@@ -805,7 +758,7 @@ namespace LuluDungeon
                 case "Heal Bottle": playerData.healBottles = Mathf.Max(0, playerData.healBottles - 1); break;
                 case "Revive Bottle": playerData.reviveBottles = Mathf.Max(0, playerData.reviveBottles - 1); break;
                 case "Exp Bottle": playerData.expBottles = Mathf.Max(0, playerData.expBottles - 1); break;
-                case "Skill Bottle": playerData.skillBottles = Mathf.Max(0, playerData.skillBottles - 1); break;
+                case "Energy Bottle": playerData.skillBottles = Mathf.Max(0, playerData.skillBottles - 1); break;
             }
         }
 
