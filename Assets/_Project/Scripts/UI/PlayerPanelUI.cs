@@ -702,6 +702,7 @@ namespace LuluDungeon
             box.size = new Vector3((size.x + 8f) * 0.001f, (size.y + 8f) * 0.001f, 0.06f);
 
             var inter = go.AddComponent<XRSimpleInteractable>();
+            go.AddComponent<HoverHighlight>();
             inter.selectEntered.AddListener(_ =>
             {
                 // UI 点击音效

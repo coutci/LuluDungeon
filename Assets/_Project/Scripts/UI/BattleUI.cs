@@ -242,6 +242,7 @@ namespace LuluDungeon
             }
             var inter = go.GetComponent<XRSimpleInteractable>();
             if (inter == null) inter = go.AddComponent<XRSimpleInteractable>();
+            if (go.GetComponent<HoverHighlight>() == null) go.AddComponent<HoverHighlight>();
             inter.selectEntered.RemoveAllListeners();
             inter.selectEntered.RemoveAllListeners();
             inter.selectEntered.AddListener(_ =>
@@ -276,6 +277,7 @@ namespace LuluDungeon
             }
             var inter = go.GetComponent<XRSimpleInteractable>();
             if (inter == null) inter = go.AddComponent<XRSimpleInteractable>();
+            if (go.GetComponent<HoverHighlight>() == null) go.AddComponent<HoverHighlight>();
             return inter;
         }
 

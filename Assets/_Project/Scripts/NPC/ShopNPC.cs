@@ -249,6 +249,7 @@ namespace LuluDungeon
         private void AddTrigger(GameObject go, UnityEngine.Events.UnityAction callback)
         {
             var inter = go.AddComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRSimpleInteractable>();
+            go.AddComponent<HoverHighlight>();
             inter.selectEntered.AddListener(_ => callback());
         }
 
