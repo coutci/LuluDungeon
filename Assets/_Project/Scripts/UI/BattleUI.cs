@@ -1,10 +1,7 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
-using UnityEngine.XR.Interaction.Toolkit.Interactors;
-using UnityEngine.XR.Interaction.Toolkit.Interactors.Casters;
 
 namespace LuluDungeon
 {
@@ -82,7 +79,6 @@ namespace LuluDungeon
             EventBus.Subscribe(EventBus.ON_BATTLE_START, Show);
             EventBus.Subscribe(EventBus.ON_BATTLE_END, Hide);
 
-            TightenRaycast();
             Hide();
         }
 
@@ -211,21 +207,6 @@ namespace LuluDungeon
             if (interactable)
             {
                 RefreshSkillButtons();
-            }
-        }
-
-        /// <summary>收紧射线命中：SphereCast 半径缩小并改用精确 Raycast，消除按钮重叠误触</summary>
-        private static void TightenRaycast()
-        {
-            foreach (var caster in FindObjectsByType<CurveInteractionCaster>(FindObjectsSortMode.None))
-            {
-                caster.sphereCastRadius = Mathf.Min(caster.sphereCastRadius, 0.01f);
-                caster.hitDetectionType = CurveInteractionCaster.HitDetectionType.Raycast;
-            }
-            foreach (var ray in FindObjectsByType<XRRayInteractor>(FindObjectsSortMode.None))
-            {
-                ray.sphereCastRadius = Mathf.Min(ray.sphereCastRadius, 0.01f);
-                ray.hitDetectionType = XRRayInteractor.HitDetectionType.Raycast;
             }
         }
 
