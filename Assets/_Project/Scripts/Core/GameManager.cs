@@ -469,8 +469,6 @@ namespace LuluDungeon
             // 全局音频:确保 AudioManager 存在(跨场景持久)
             AudioManager.EnsureInstance();
 
-            // 手柄射线末端光点（常驻，跨场景）
-            RayPointerDot.Ensure();
         }
 
         private void Start()
