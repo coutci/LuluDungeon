@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
+using UnityEngine.XR.Interaction.Toolkit.Interactors.Casters;
+using UnityEngine.XR.Interaction.Toolkit.Interactors.Visuals;
 
 namespace LuluDungeon
 {
@@ -77,6 +79,18 @@ namespace LuluDungeon
             var all = FindObjectsByType<XRBaseInteractor>(FindObjectsSortMode.None);
             foreach (var inter in all)
                 if (inter != null) _interactors.Add(inter);
+
+            // 全局收紧射线命中（任意场景生效）：默认 ConeCast 半径 0.1m 会同时罩住多个按钮导致误触
+            foreach (var caster in FindObjectsByType<CurveInteractionCaster>(FindObjectsSortMode.None))
+            {
+                caster.sphereCastRadius = Mathf.Min(caster.sphereCastRadius, 0.01f);
+                caster.hitDetectionType = CurveInteractionCaster.HitDetectionType.Raycast;
+            }
+            foreach (var ray in FindObjectsByType<XRRayInteractor>(FindObjectsSortMode.None))
+            {
+                ray.sphereCastRadius = Mathf.Min(ray.sphereCastRadius, 0.01f);
+                ray.hitDetectionType = XRRayInteractor.HitDetectionType.Raycast;
+            }
         }
 
         private void Update()
@@ -112,9 +126,14 @@ namespace LuluDungeon
                 {
                     // UI 命中（uGUI 面板）
                     if (nf.TryGetCurrentUIRaycastResult(out var ui) && ui.isValid) { pos = ui.worldPosition; visible = true; break; }
-                    // 远距离射线命中（3D collider 按钮等）
-                    var caster = nf.farInteractionCaster as XRRayInteractor;
-                    if (caster != null && caster.TryGetCurrent3DRaycastHit(out var hit)) { pos = hit.point; visible = true; break; }
+                    // 射线命中（3D collider 按钮/可交互物）：曲线端点 = 命中点
+                    var epType = nf.TryGetCurveEndPoint(out var ep);
+                    if (epType == EndPointType.ValidCastHit || epType == EndPointType.UI)
+                    {
+                        pos = ep;
+                        visible = true;
+                        break;
+                    }
                 }
             }
 

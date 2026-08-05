@@ -1,7 +1,10 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
+using UnityEngine.XR.Interaction.Toolkit.Interactors;
+using UnityEngine.XR.Interaction.Toolkit.Interactors.Casters;
 
 namespace LuluDungeon
 {
@@ -79,6 +82,7 @@ namespace LuluDungeon
             EventBus.Subscribe(EventBus.ON_BATTLE_START, Show);
             EventBus.Subscribe(EventBus.ON_BATTLE_END, Hide);
 
+            TightenRaycast();
             Hide();
         }
 
@@ -149,8 +153,9 @@ namespace LuluDungeon
             if (_energyText != null && ps != null)
                 _energyText.text = $"⚡ {ps.energy}/{SpriteInstance.MaxEnergy}";
 
-            // 常驻刷新技能次数显示
-            if (ps != null && _bm.CurrentState == BattleState.PlayerTurn)
+            // 常驻刷新技能显示（面板打开时跳过，避免每帧重新启用被禁用的主按钮）
+            bool panelOpen = (switchPanel != null && switchPanel.activeSelf) || (bagPanel != null && bagPanel.activeSelf);
+            if (ps != null && _bm.CurrentState == BattleState.PlayerTurn && !panelOpen)
             {
                 RefreshSkillButtons();
             }
@@ -207,6 +212,34 @@ namespace LuluDungeon
             {
                 RefreshSkillButtons();
             }
+        }
+
+        /// <summary>收紧射线命中：SphereCast 半径缩小并改用精确 Raycast，消除按钮重叠误触</summary>
+        private static void TightenRaycast()
+        {
+            foreach (var caster in FindObjectsByType<CurveInteractionCaster>(FindObjectsSortMode.None))
+            {
+                caster.sphereCastRadius = Mathf.Min(caster.sphereCastRadius, 0.01f);
+                caster.hitDetectionType = CurveInteractionCaster.HitDetectionType.Raycast;
+            }
+            foreach (var ray in FindObjectsByType<XRRayInteractor>(FindObjectsSortMode.None))
+            {
+                ray.sphereCastRadius = Mathf.Min(ray.sphereCastRadius, 0.01f);
+                ray.hitDetectionType = XRRayInteractor.HitDetectionType.Raycast;
+            }
+        }
+
+        /// <summary>主操作区按钮整体启停（面板打开时禁用，防止面板按钮与主按钮重叠误触）</summary>
+        private void SetMainButtonsInteractable(bool on)
+        {
+            SetButtonInteractable(skill1Button, on);
+            SetButtonInteractable(skill2Button, on);
+            SetButtonInteractable(skill3Button, on);
+            SetButtonInteractable(switchButton, on);
+            SetButtonInteractable(bagButton, on);
+            SetButtonInteractable(escapeButton, on && _bm != null && !_bm.IsBossBattle);
+            SetButtonInteractable(healButton, on && _gm != null && _gm.HasItem("Heal Bottle"));
+            SetButtonInteractable(skillBottleButton, on && _gm != null && _gm.HasItem("Energy Bottle"));
         }
 
         /// <summary>
@@ -326,7 +359,17 @@ namespace LuluDungeon
             switchPanel.SetActive(active);
             if (bagPanel && active) bagPanel.SetActive(false);
 
-            if (active) RefreshSwitchSlots();
+            if (active)
+            {
+                // 打开切换面板：禁用主操作按钮，防止与面板按钮重叠误触
+                SetMainButtonsInteractable(false);
+                RefreshSwitchSlots();
+            }
+            else
+            {
+                // 关闭：按战斗状态恢复主按钮
+                SetButtonsInteractable(_bm != null && _bm.CurrentState == BattleState.PlayerTurn);
+            }
         }
 
         private void ToggleBagPanel()
@@ -336,7 +379,17 @@ namespace LuluDungeon
             bagPanel.SetActive(active);
             if (switchPanel && active) switchPanel.SetActive(false);
 
-            if (active) RefreshBagSlots();
+            if (active)
+            {
+                // 打开背包面板：禁用主操作按钮，防止重叠误触
+                SetMainButtonsInteractable(false);
+                RefreshBagSlots();
+            }
+            else
+            {
+                // 关闭：按战斗状态恢复主按钮
+                SetButtonsInteractable(_bm != null && _bm.CurrentState == BattleState.PlayerTurn);
+            }
         }
 
         private void RefreshSwitchSlots()
